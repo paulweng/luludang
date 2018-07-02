@@ -27,6 +27,18 @@ class Ticker(object):
         self.ask_price = ask_price
         self.ask_volume = ask_volume
 
+    def __init__(self, symbol, last_price, last_volume, bid_price, bid_volume, ask_price, ask_volume, bids, asks):
+        self.symbol = symbol
+        self.last_price = last_price
+        self.last_volume = last_volume
+        self.bid_price = bid_price
+        self.bid_volume = bid_volume
+        self.ask_price = ask_price
+        self.ask_volume = ask_volume
+        self.bids = bids
+        self.asks = asks
+
+
     def get_symbol(self):
         return self.symbol
 
@@ -47,6 +59,12 @@ class Ticker(object):
 
     def get_ask_volume(self):
         return self.ask_volume
+
+    def get_asks(self):
+        return self.asks
+
+    def get_bids(self):
+        return self.bids
 
     def __str__(self):
         s = 'symbol: ' + self.symbol+", last_price: " + str(self.last_price)

@@ -48,19 +48,24 @@ class CoinData:
 
                 ticker = Ticker(symbol, last_price, last_volume, bid_price, bid_volume, ask_price, ask_volume)
 
-                if ticker.get_symbol() in self._ticker_dict:
+                self._handle_tick(ticker)
 
-                    ticker_list = self._ticker_dict[ticker.get_symbol()]
+    # 处理tick数据
+    def _handle_tick(self, ticker):
 
-                    if len(ticker_list) < self._ticker_size:
-                        ticker_list.append(ticker)
-                    else:
-                        del ticker_list[0]
-                        ticker_list.append(ticker)
-                else:
-                    self._ticker_dict[ticker.get_symbol()] = [ticker]
+        if ticker.get_symbol() in self._ticker_dict:
 
-                self._handler(ticker)
+            ticker_list = self._ticker_dict[ticker.get_symbol()]
+
+            if len(ticker_list) < self._ticker_size:
+                ticker_list.append(ticker)
+            else:
+                del ticker_list[0]
+                ticker_list.append(ticker)
+        else:
+            self._ticker_dict[ticker.get_symbol()] = [ticker]
+
+        self._handler(ticker)
 
     def _on_error(self, ws, error):
         print(error)
@@ -91,6 +96,13 @@ class CoinData:
         except:
             print("Unexpected error:", sys.exc_info()[0])
 
+    def connectSync(self):
+        self._ws = websocket.WebSocketApp(self._ws_server,
+                                           on_message=self._on_message,
+                                           on_error=self._on_error,
+                                           on_close=self._on_close)
+        self._ws.on_open = self._on_open
+        self._ws.run_forever()
 
     # 获取最新ticker
     def get_last_ticker(self, symbol):
@@ -108,16 +120,14 @@ class CoinData:
 
 
 class HuobiData(CoinData):
-    '''
-    def _init_(self, symbols, ticker_size, handler, ws_server):
-        super()
-    '''
+
+    __last_trade = {}
 
     def _on_open(self, ws):
-        print("### opened 1 ###")
+        print("### opened ###")
 
         for symbol in self._symbols:
-            '''
+
             sub = '{"sub": "market.'+symbol+'.depth.step5"}'
             print(sub)
             ws.send(sub)
@@ -126,45 +136,34 @@ class HuobiData(CoinData):
             print(sub)
             ws.send(sub)
 
-            '''
+
 
     def _on_message(self, ws, message):
         msg = json.loads(gzip.decompress(message))
-        print(msg)
 
         if 'ping' in msg:
-            print(msg['ping'])
+            print(msg)
             ws.send("{'pong':'+msg['ping']+'}")
 
+        elif 'ch' in msg:
+            ch = msg['ch']
+            ch_list = ch.split('.')
 
-        """
-        if 'type' in msg:
-            if msg['type'] == 'hello':
-                print('welcome：', message)
-            elif msg['type'].startswith('ticker'):
-                # print('ticker数据：', message)
+            symbol = ch_list[1]
+            if (ch_list[2] == 'depth') and (symbol in self.__last_trade):
+                # 解析
+                data = msg['tick']
+                last_trade = self.__last_trade[symbol]
 
-                symbol = msg['type'][7:]
-                last_price = msg['ticker'][0]
-                last_volume = msg['ticker'][1]
-                bid_price = msg['ticker'][2]
-                bid_volume = msg['ticker'][3]
-                ask_price = msg['ticker'][4]
-                ask_volume = msg['ticker'][5]
+                ticker = Ticker(symbol, last_trade['price'],
+                                last_trade['amount'], data['bids'][0][0], data['bids'][0][1],
+                                data['asks'][0][0], data['asks'][0][1], data['bids'], data['asks'])
 
-                ticker = Ticker(symbol, last_price, last_volume, bid_price, bid_volume, ask_price, ask_volume)
+                self._handle_tick(ticker)
 
-                if ticker.get_symbol() in self._ticker_dict:
+            elif ch_list[2] == 'trade':
+                # 解析
+                data = msg['tick']['data']
+                last_trade = data[len(data)-1]
+                self.__last_trade[symbol] = last_trade
 
-                    ticker_list = self._ticker_dict[ticker.get_symbol()]
-
-                    if len(ticker_list) < self._ticker_size:
-                        ticker_list.append(ticker)
-                    else:
-                        del ticker_list[0]
-                        ticker_list.append(ticker)
-                else:
-                    self._ticker_dict[ticker.get_symbol()] = [ticker]
-
-                self._handler(ticker)
-        """

@@ -10,10 +10,49 @@ import urllib.parse
 import urllib.request
 import requests
 
-TRADE_URL = "https://api.huobi.pro"
+# TRADE_URL = "https://api.huobi.pro"
+TRADE_URL = "https://api.huobi.br.com"
 
 ACCESS_KEY = "3c5c1b5b-182b03c4-28a1ef06-2554a"
 SECRET_KEY = "daa4a2e2-5d6c2b21-c1ecec40-ac2a0"
+
+
+
+def api_key_get(params, request_path):
+    method = 'GET'
+    timestamp = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
+    params.update({'AccessKeyId': ACCESS_KEY,
+                   'SignatureMethod': 'HmacSHA256',
+                   'SignatureVersion': '2',
+                   'Timestamp': timestamp})
+
+    host_url = TRADE_URL
+    host_name = urllib.parse.urlparse(host_url).hostname
+    host_name = host_name.lower()
+    params['Signature'] = createSign(params, method, host_name, request_path, SECRET_KEY)
+
+    url = host_url + request_path
+    return http_get_request(url, params)
+
+
+def http_get_request(url, params, add_to_headers=None):
+    headers = {
+        "Content-type": "application/x-www-form-urlencoded",
+        'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.71 Safari/537.36',
+    }
+    if add_to_headers:
+        headers.update(add_to_headers)
+    postdata = urllib.parse.urlencode(params)
+    response = requests.get(url, postdata, headers=headers, timeout=5)
+    try:
+
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return
+    except BaseException as e:
+        print("httpGet failed, detail is:%s,%s" % (response.text, e))
+        return
 
 def http_post_request(url, params, add_to_headers=None):
     headers = {
@@ -63,3 +102,19 @@ def createSign(pParams, method, host_url, request_path, secret_key):
     signature = signature.decode()
     return signature
 
+
+ACCOUNT_ID = 0
+
+
+def get_accounts():
+
+    path = "/v1/account/accounts"
+    params = {}
+    return api_key_get(params, path)
+
+
+acct_id = '3984817'
+
+url = "/v1/account/accounts/{0}/balance".format(acct_id)
+params = {"account-id": acct_id}
+print(api_key_get(params, url))

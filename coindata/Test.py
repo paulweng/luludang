@@ -3,19 +3,30 @@ import time
 
 from coindata.coin_data import *
 
-print(1)
 # 订阅处理
 def ticker_handler(ticker):
-     pass
+
+     print(ticker, ticker.get_asks())
+     '''
+     fteth = coinData.get_last_ticker('fteth')
+     ftusdt = coinData.get_last_ticker('ftusdt')
+     ethusdt = coinData.get_last_ticker('ethusdt')
+
+     if fteth != None and ftusdt != None and ethusdt != None:
+          v = fteth.get_last_price() * ftusdt.get_last_price() * ethusdt.get_last_price()
+          print(v)
+          if v > 1:
+               print('触发信号，v:%f,fteth:%f,ftusdt:%f,ethusdt:%f',
+               v, fteth.get_last_price(), ftusdt.get_last_price(), ethusdt.get_last_price())
+
+     '''
     # print(ticker.symbol, 20, ticker.last_price)
     # print(ticker)
 
 
-coinData = CoinData(['btcusdt', 'ethusdt'], 20, ticker_handler, FCOIN_WS_SERVER)
-coinData.connect()
+coinData = HuobiData(['ethusdt'], 20, ticker_handler, HUOBI_WS_SERVER)
+coinData.connectSync()
 
-print(111)
-time.sleep(3)
 
 print('sleep end')
 # 获取最新数据
