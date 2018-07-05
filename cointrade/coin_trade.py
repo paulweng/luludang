@@ -14,6 +14,19 @@ import requests
 # TRADE_URL = "https://api.huobi.pro"
 HUOBI_TRADE_URL = "https://api.huobi.br.com"
 
+# 已提交
+STATE_SUBMITTED = 'submitted'
+# 部分成交
+STATE_PARTIAL_FILLED = 'partial_filled'
+# 部分成交撤销
+STATE_PARTIAL_CANCELED = 'partial_canceled'
+# 完全成交
+STATE_FILLED = 'filled'
+# 已撤销
+STATE_CANCELED = 'canceled'
+
+ALL_STATES = 'submitted,partial_filled,canceled,filled,partial_canceled'
+
 
 class CoinTrade:
 
@@ -132,6 +145,8 @@ class CoinTrade:
         '''
         查询所有订单
 
+        :param symbol: 交易对
+        :param states: 状态，多个以逗号分隔
         :param order_id: 订单编号
         :return:
 
@@ -240,91 +255,82 @@ class HuobiTrade(CoinTrade):
         t.start()
 
     def cancel_order(self, order_id):
-        '''
-        撤单
 
-        :param order_id: 订单编号
-        :return:
-        '''
-        pass
+        path = "/v1/order/orders/{0}/submitcancel".format(order_id)
+
+        return self._api_key_post({}, path)
+
 
     def get_order(self, order_id):
-        '''
-        获取指定订单
 
-        :param order_id: 订单编号
-        :return:
+        path = "/v1/order/orders/{0}".format(order_id)
 
-        {
-            "id": 59378, // 订单编号
+        result = self._api_key_get({}, path)
 
-            "symbol": "ethusdt", // 交易对
+        if result['status'] != 'ok':
+            print(result)
+        else:
+            obj = result['data']
 
-            "amount": "10.1000000000", //委托数量
+            return {
+                    'id': obj['id'],
+                    'symbol': obj['symbol'],
+                    'amount': float(obj['amount']),
+                    'price': float(obj['price']),
+                    'type': obj['type'].split("-")[1],
+                    'side': obj['type'].split("-")[0],
+                    'created_at': obj['created-at'],
+                    'field_amount': float(obj['field-amount']),
+                    'executed_value': float(obj['field-cash-amount']),
+                    'fill_fees': float(obj['field-fees']),
+                    'finished_at': obj['finished-at'],
+                    'state': obj['state'].replace("-", "_"),
+                    'canceled_at': obj['canceled-at']
 
-            "price": "100.1000000000", // 委托价格
+                }
 
-            "created_at": 1494901162595, // 创建时间
 
-            "type": "limit", // 订单类型
 
-            "side": "buy", // 买卖方向
+    def get_all_order(self, symbol = None, states = ALL_STATES):
 
-            "field_amount": "10.1000000000", // 成交量
+        path = "/v1/order/orders"
+        params = {}
 
-            "executed_value": "1011.0100000000", // 成交金额
+        if symbol is not None:
+            params['symbol'] = symbol
 
-            "fill_fees": "0.0202000000", // 手续费
+        if states is not None:
+            states = states.replace("_", "-")
+            params['states'] = states
 
-            "finished_at": 1494901400468, // 成交时间 火币专属
+        result = self._api_key_get(params, path)
 
-            "state": "filled", // 订单状态， submitted - 已提交，partial_filled - 部分成交，partial_canceled - 部分撤单， filled - 全部成交，canceled - 已撤单，pending_cancel - 撤单已提交
+        if result['status'] != 'ok':
+            print(result)
+        else:
+            list = []
 
-            "canceled-at": 0 // 撤单时间 火币专属
-        }
+            for obj in result['data']:
+                list.append({
+                    'id': obj['id'],
+                    'symbol': obj['symbol'],
+                    'amount': float(obj['amount']),
+                    'price': float(obj['price']),
+                    'type': obj['type'].split("-")[1],
+                    'side': obj['type'].split("-")[0],
+                    'created_at': obj['created-at'],
+                    'field_amount': float(obj['field-amount']),
+                    'executed_value': float(obj['field-cash-amount']),
+                    'fill_fees': float(obj['field-fees']),
+                    'finished_at': obj['finished-at'],
+                    'state': obj['state'].replace("-", "_"),
+                    'canceled_at': obj['canceled-at']
 
-        '''
+                })
 
-        pass
+            return list
 
-    def get_all_order(self, symbol=None, states=None):
-        '''
-        查询所有订单
 
-        :param order_id: 订单编号
-        :return:
-
-        {
-            "id": 59378, // 订单编号
-
-            "symbol": "ethusdt", // 交易对
-
-            "amount": "10.1000000000", //委托数量
-
-            "price": "100.1000000000", // 委托价格
-
-            "created_at": 1494901162595, // 创建时间
-
-            "type": "limit", // 订单类型
-
-            "side": "buy", // 买卖方向
-
-            "field_amount": "10.1000000000", // 成交量
-
-            "executed_value": "1011.0100000000", // 成交金额
-
-            "fill_fees": "0.0202000000", // 手续费
-
-            "finished_at": 1494901400468, // 成交时间 火币专属
-
-            "state": "filled", // 订单状态， submitted - 已提交，partial_filled - 部分成交，partial_canceled - 部分撤单， filled - 全部成交，canceled - 已撤单，pending_cancel - 撤单已提交
-
-            "canceled-at": 0 // 撤单时间 火币专属
-        }
-
-        '''
-
-        pass
 
     def _api_key_get(self, params, request_path):
         method = 'GET'
