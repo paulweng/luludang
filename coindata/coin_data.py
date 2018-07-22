@@ -1,11 +1,10 @@
 # -*- coding:utf-8 -*-
-import _thread
 import json
 import sys
 import gzip
 import threading
 
-from coindata.model_def import Ticker
+from model_def import Ticker
 import websocket
 
 # fcoin websocket地址
@@ -36,7 +35,6 @@ class CoinData:
             if msg['type'] == 'hello':
                 print('welcome：', message)
             elif msg['type'].startswith('ticker'):
-                # print('ticker数据：', message)
 
                 symbol = msg['type'][7:]
                 last_price = msg['ticker'][0]
@@ -128,7 +126,7 @@ class HuobiData(CoinData):
 
         for symbol in self._symbols:
 
-            sub = '{"sub": "market.'+symbol+'.depth.step5"}'
+            sub = '{"sub": "market.'+symbol+'.depth.step0"}'
             print(sub)
             ws.send(sub)
 
@@ -166,4 +164,3 @@ class HuobiData(CoinData):
                 data = msg['tick']['data']
                 last_trade = data[len(data)-1]
                 self.__last_trade[symbol] = last_trade
-

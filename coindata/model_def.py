@@ -18,16 +18,9 @@ class Ticker(object):
     # 卖一量
     ask_volume = 0
     """
-    def __init__(self, symbol, last_price, last_volume, bid_price, bid_volume, ask_price, ask_volume):
-        self.symbol = symbol
-        self.last_price = last_price
-        self.last_volume = last_volume
-        self.bid_price = bid_price
-        self.bid_volume = bid_volume
-        self.ask_price = ask_price
-        self.ask_volume = ask_volume
 
-    def __init__(self, symbol, last_price, last_volume, bid_price, bid_volume, ask_price, ask_volume, bids, asks):
+    def __init__(self, symbol, last_price, last_volume, bid_price, bid_volume, ask_price, ask_volume,
+                 bids=None, asks=None):
         self.symbol = symbol
         self.last_price = last_price
         self.last_volume = last_volume

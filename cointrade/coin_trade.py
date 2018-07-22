@@ -6,13 +6,55 @@ import hashlib
 import hmac
 import json
 import threading
+import time
 import urllib
 import urllib.parse
 import urllib.request
 import requests
 
+import logging
+
+
+logger = logging.getLogger("trade")
+logger.setLevel(logging.DEBUG)
+
+#输出到屏幕
+ch = logging.StreamHandler()
+ch.setLevel(logging.WARNING)
+#输出到文件
+fh = logging.FileHandler("trade_error.log")
+fh.setLevel(logging.INFO)
+#设置日志格式
+fomatter = logging.Formatter('%(asctime)s -%(name)s-%(levelname)s-%(module)s:%(message)s')
+ch.setFormatter(fomatter)
+fh.setFormatter(fomatter)
+logger.addHandler(ch)
+logger.addHandler(fh)
+
 # TRADE_URL = "https://api.huobi.pro"
 HUOBI_TRADE_URL = "https://api.huobi.br.com"
+
+# fcoin 配置
+FCOIN_SERVER = 'api.fcoin.com'
+PORT = 80
+HT = 'https://%s/v2/'
+HTMRK = 'https://%s/v2/market/'
+HTPBL = 'https://%s/v2/public/'
+HTORD = 'https://%s/v2/orders/'
+HTACT = 'https://%s/v2/accounts/'
+WS = 'wss://%S/v2/ws/'
+
+ST = 'server-time'
+SYMBOLS = 'symbols'
+CURRENCY = 'currencies'
+TICKER = 'ticker/%s'
+
+POST = 'POST'
+GET = 'GET'
+
+KDATA = 'candles/%s/%s'
+KDATA_COLUMNS = ['id', 'open', 'high', 'low', 'close', 'count', 'base_vol', 'quote_vol', 'seq']
+KDATA_REAL_COL = ['datetime', 'open', 'high', 'low', 'close', 'count', 'base_vol', 'quote_vol', 'seq']
 
 # 已提交
 STATE_SUBMITTED = 'submitted'
@@ -182,6 +224,15 @@ class CoinTrade:
 
         pass
 
+
+'''
+acct_id = '3984817'
+
+url = "/v1/account/accounts/{0}/balance".format(acct_id)
+params = {"account-id": acct_id}
+print(api_key_get(params, url))
+
+'''
 
 class HuobiTrade(CoinTrade):
 
@@ -414,11 +465,172 @@ class HuobiTrade(CoinTrade):
         signature = signature.decode()
         return signature
 
-'''
-acct_id = '3984817'
 
-url = "/v1/account/accounts/{0}/balance".format(acct_id)
-params = {"account-id": acct_id}
-print(api_key_get(params, url))
+class FCoinTrade(CoinTrade):
 
-'''
+    def _get_account(self):
+        return ''
+
+    def get_balance(self):
+        result = self._signed_request(GET, HTACT%FCOIN_SERVER + 'balance')
+
+        balanceDict = {}
+
+        for balance in result['data']:
+
+            symbol = balance['currency']
+
+            if symbol not in balanceDict:
+                balanceDict[symbol] = {}
+
+                balanceDict[symbol]['available'] = float(balance['available'])
+
+                balanceDict[symbol]['frozen'] = float(balance['frozen'])
+
+                balanceDict[symbol]['balance'] = float(balance['balance'])
+
+
+        return balanceDict
+
+    def place_order(self, symbol, amount, side, _type, price):
+
+        params = {
+            'amount': amount,
+            'price': price,
+            'symbol': symbol,
+            'type': _type,
+            'side': side
+        }
+
+
+        result = self._signed_request(POST,HTORD%FCOIN_SERVER , amount=amount,price=price,symbol=symbol,type=_type,side=side)
+
+        cresult = {}
+
+        cresult['status'] = result['status']
+
+        if cresult['status'] == 0:
+            cresult['order_id'] = result['data']
+        else:
+            logger.error(result)
+        return cresult
+
+
+    def place_order_async (self, symbol, amount, side, _type, price):
+
+        t = threading.Thread(target=self.place_order,
+                             args=(symbol, amount, side, _type, price))
+        t.start()
+
+    def cancel_order(self, order_id):
+
+        path = "/v1/order/orders/{0}/submitcancel".format(order_id)
+
+        return self._api_key_post({}, path)
+
+
+    def get_order(self, order_id):
+
+
+        result = self._signed_request(GET, HTORD % FCOIN_SERVER+ order_id)
+
+
+        if result['status'] != 0:
+            logger.error(result)
+        else:
+            obj = result['data']
+
+            return {
+                    'id': obj['id'],
+                    'symbol': obj['symbol'],
+                    'amount': float(obj['amount']),
+                    'price': float(obj['price']),
+                    'type': obj['type'],
+                    'side': obj['side'],
+                    'created_at': obj['created_at'],
+                    'field_amount': float(obj['filled_amount']),
+                    'executed_value': float(obj['executed_value']),
+                    'fill_fees': float(obj['fill_fees']),
+                    'state': obj['state'].replace("-", "_")
+
+                }
+
+
+
+    def get_all_order(self, symbol = None, states = ALL_STATES):
+
+        result = self._signed_request(POST, HTORD % FCOIN_SERVER)
+
+        print(result)
+        if result['status'] != 'ok':
+            print(result)
+        else:
+            list = []
+
+            for obj in result['data']:
+                list.append({
+                    'id': obj['id'],
+                    'symbol': obj['symbol'],
+                    'amount': float(obj['amount']),
+                    'price': float(obj['price']),
+                    'type': obj['type'].split("-")[1],
+                    'side': obj['type'].split("-")[0],
+                    'created_at': obj['created-at'],
+                    'field_amount': float(obj['field-amount']),
+                    'executed_value': float(obj['field-cash-amount']),
+                    'fill_fees': float(obj['field-fees']),
+                    'state': obj['state'].replace("-", "_")
+
+                })
+
+            return list
+
+    def _signed_request(self, method, url, **params):
+        param = ''
+        if params:
+            sort_pay = list(params.keys())
+            sort_pay.sort()
+            for k in sort_pay:
+                param += '&' + str(k) + '=' + str(params[k])
+            param = param.lstrip('&')
+        timestamp = str(int(time.time() * 1000))
+
+        if method == GET:
+            if param:
+                url = url + '?' + param
+            sig_str = method + url + timestamp
+        elif method == POST:
+            sig_str = method + url + timestamp + param
+
+        signature = self._get_signed(sig_str)
+
+        headers = {
+            'FC-ACCESS-KEY': self._access_key,
+            'FC-ACCESS-SIGNATURE': signature,
+            'FC-ACCESS-TIMESTAMP': timestamp
+
+        }
+
+        try:
+            r = requests.request(method, url, headers=headers, json=params)
+            r.raise_for_status()
+        except requests.exceptions.HTTPError as err:
+            logger.error(err)
+            logger.error(r.text)
+        if r.status_code == 200:
+            return r.json()
+
+    def _public_request(self, method, url, **params):
+        try:
+            r = requests.request(method, url, params=params)
+            r.raise_for_status()
+        except requests.exceptions.HTTPError as err:
+            logger.error(err)
+        if r.status_code == 200:
+            return r.json()
+
+    def _get_signed(self, sig_str):
+        sig_str = base64.b64encode(bytes(sig_str, 'utf-8'))
+        signature = base64.b64encode(hmac.new(bytes(self._secret_key,'utf-8'), sig_str, digestmod=hashlib.sha1).digest())
+        return signature
+
