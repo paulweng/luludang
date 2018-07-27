@@ -510,8 +510,10 @@ class FCoinTrade(CoinTrade):
         cresult['status'] = result['status']
 
         if cresult['status'] == 0:
+            cresult['status'] = 'ok'
             cresult['order_id'] = result['data']
         else:
+            cresult['status'] = 'error'
             logger.error(result)
         return cresult
 
@@ -524,9 +526,10 @@ class FCoinTrade(CoinTrade):
 
     def cancel_order(self, order_id):
 
-        path = "/v1/order/orders/{0}/submitcancel".format(order_id)
+        result = self._signed_request(GET, (HTORD + str(order_id) + '/submit-cancel') % FCOIN_SERVER)
 
-        return self._api_key_post({}, path)
+        if result['status'] != 0 :
+            logger.error(result)
 
 
     def get_order(self, order_id):
@@ -559,11 +562,13 @@ class FCoinTrade(CoinTrade):
 
     def get_all_order(self, symbol = None, states = ALL_STATES):
 
-        result = self._signed_request(POST, HTORD % FCOIN_SERVER)
+
+
+        result = self._signed_request(GET, HTORD % FCOIN_SERVER,symbol = symbol,states=states)
 
         print(result)
         if result['status'] != 'ok':
-            print(result)
+            logger.error(result)
         else:
             list = []
 
@@ -573,13 +578,13 @@ class FCoinTrade(CoinTrade):
                     'symbol': obj['symbol'],
                     'amount': float(obj['amount']),
                     'price': float(obj['price']),
-                    'type': obj['type'].split("-")[1],
-                    'side': obj['type'].split("-")[0],
-                    'created_at': obj['created-at'],
-                    'field_amount': float(obj['field-amount']),
-                    'executed_value': float(obj['field-cash-amount']),
-                    'fill_fees': float(obj['field-fees']),
-                    'state': obj['state'].replace("-", "_")
+                    'type': obj['type'],
+                    'side': obj['side'],
+                    'created_at': obj['created_at'],
+                    'field_amount': float(obj['filled_amount']),
+                    'executed_value': float(obj['executed_value']),
+                    'fill_fees': float(obj['fill_fees']),
+                    'state': obj['state']
 
                 })
 
@@ -633,4 +638,3 @@ class FCoinTrade(CoinTrade):
         sig_str = base64.b64encode(bytes(sig_str, 'utf-8'))
         signature = base64.b64encode(hmac.new(bytes(self._secret_key,'utf-8'), sig_str, digestmod=hashlib.sha1).digest())
         return signature
-
